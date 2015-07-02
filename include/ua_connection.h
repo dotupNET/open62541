@@ -60,12 +60,14 @@ struct UA_Connection {
     UA_ConnectionState state;
     UA_ConnectionConfig localConf;
     UA_ConnectionConfig remoteConf;
-    UA_SecureChannel *channel; ///> The securechannel that is attached to this connection (or null)
-    UA_Int32 sockfd; ///> Most connectivity solutions run on sockets. Having the socket id here simplifies the design.
-    void *handle; ///> A pointer to the networklayer
-    UA_ByteString incompleteMessage; ///> Half-received messages (tcp is a streaming protocol) get stored here
-    UA_StatusCode (*getBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Get a buffer of the maximum remote recv size
-    void (*releaseBuffer)(UA_Connection *connection, UA_ByteString *buf); ///> Release the buffer manually
+    UA_SecureChannel *channel; ///< The securechannel that is attached to this connection (or null)
+    UA_Int32 sockfd; ///< Most connectivity solutions run on sockets. Having the socket id here simplifies the design.
+    void *handle; ///< A pointer to the networklayer
+    UA_ByteString incompleteMessage; ///< Half-received messages (e.g. TCP is a streaming protocol) get stored here
+
+    UA_StatusCode (*getWriteBuffer)(UA_Connection *connection, UA_ByteString *buf); ///< Get a buffer of the maximum remote recv size
+    void (*releaseWriteBuffer)(UA_Connection *connection, UA_ByteString *buf); ///< Release the write buffer manually
+
     /**
      * Sends a message over the connection.
      * @param connection The connection
@@ -74,6 +76,7 @@ struct UA_Connection {
      * @return Returns an error code or UA_STATUSCODE_GOOD.
      */
     UA_StatusCode (*write)(UA_Connection *connection, UA_ByteString *buf, size_t buflen);
+
    /**
      * Receive a message from the remote connection
 	 * @param connection The connection
@@ -83,7 +86,9 @@ struct UA_Connection {
      * UA_STATUSCODE_BADCONNECTIONCLOSED if the connection was closed.
 	 */
     UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout);
-    void (*close)(UA_Connection *connection);
+    void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf); ///< Release the buffer of a received message
+
+    void (*close)(UA_Connection *connection); ///< Close the connection
 };
 
 void UA_EXPORT UA_Connection_init(UA_Connection *connection);

@@ -19,16 +19,16 @@ void UA_Connection_init(UA_Connection *connection) {
     connection->write = UA_NULL;
     connection->close = UA_NULL;
     connection->recv = UA_NULL;
-    connection->getBuffer = UA_NULL;
-    connection->releaseBuffer = UA_NULL;
+    connection->getWriteBuffer = UA_NULL;
+    connection->releaseWriteBuffer = UA_NULL;
+    connection->releaseRecvBuffer = UA_NULL;
 }
 
 void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
 }
 
-UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received)
-{
+UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received) {
     if(received.length == -1)
         return received;
 

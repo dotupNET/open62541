@@ -124,7 +124,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     seqHeader.requestId = requestId;
 
     UA_ByteString message;
-    UA_StatusCode retval = connection->getBuffer(connection, &message);
+    UA_StatusCode retval = connection->getWriteBuffer(connection, &message);
     if(retval != UA_STATUSCODE_GOOD)
         return retval;
 
@@ -133,7 +133,7 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     retval |= UA_encodeBinary(content, contentType, &message, &messagePos);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseBuffer(connection, &message);
+        connection->releaseWriteBuffer(connection, &message);
         return retval;
     }
 
@@ -152,6 +152,6 @@ UA_StatusCode UA_SecureChannel_sendBinaryMessage(UA_SecureChannel *channel, UA_U
     
     retval = connection->write(connection, &message, respHeader.messageHeader.messageSize);
     if(retval != UA_STATUSCODE_GOOD)
-        connection->releaseBuffer(connection, &message);
+        connection->releaseWriteBuffer(connection, &message);
     return retval;
 }
