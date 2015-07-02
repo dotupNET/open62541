@@ -235,10 +235,10 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     c->sockfd = newsockfd;
     c->handle = layer;
     c->localConf = layer->conf;
-    c->write = socket_write;
+    c->send = socket_write;
     c->close = ServerNetworkLayerTCP_closeConnection;
-    c->getWriteBuffer = ServerNetworkLayerGetBuffer;
-    c->releaseWriteBuffer = ServerNetworkLayerReleaseBuffer;
+    c->getSendBuffer = ServerNetworkLayerGetBuffer;
+    c->releaseSendBuffer = ServerNetworkLayerReleaseBuffer;
     c->releaseRecvBuffer = ServerNetworkLayerReleaseBuffer;
     c->state = UA_CONNECTION_OPENING;
     struct ConnectionMapping *nm =
@@ -521,11 +521,11 @@ UA_Connection ClientNetworkLayerTCP_connect(UA_ConnectionConfig localConf, char 
     }
     connection.state = UA_CONNECTION_OPENING;
     //socket_set_nonblocking(connection.sockfd);
-    connection.write = socket_write;
+    connection.send = socket_write;
     connection.recv = socket_recv;
     connection.close = ClientNetworkLayerClose;
-    connection.getWriteBuffer = ClientNetworkLayerGetBuffer;
-    connection.releaseWriteBuffer = ClientNetworkLayerReleaseBuffer;
+    connection.getSendBuffer = ClientNetworkLayerGetBuffer;
+    connection.releaseSendBuffer = ClientNetworkLayerReleaseBuffer;
     connection.releaseRecvBuffer = ClientNetworkLayerReleaseBuffer;
     return connection;
 }

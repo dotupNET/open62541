@@ -16,11 +16,11 @@ void UA_Connection_init(UA_Connection *connection) {
     connection->sockfd = 0;
     connection->handle = UA_NULL;
     UA_ByteString_init(&connection->incompleteMessage);
-    connection->write = UA_NULL;
+    connection->send = UA_NULL;
     connection->close = UA_NULL;
     connection->recv = UA_NULL;
-    connection->getWriteBuffer = UA_NULL;
-    connection->releaseWriteBuffer = UA_NULL;
+    connection->getSendBuffer = UA_NULL;
+    connection->releaseSendBuffer = UA_NULL;
     connection->releaseRecvBuffer = UA_NULL;
 }
 

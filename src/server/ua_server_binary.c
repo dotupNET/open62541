@@ -41,14 +41,14 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
     ackHeader.messageSize =  8 + 20; /* ackHeader + ackMessage */
 
     UA_ByteString ack_msg;
-    if(connection->getWriteBuffer(connection, &ack_msg) != UA_STATUSCODE_GOOD)
+    if(connection->getSendBuffer(connection, &ack_msg) != UA_STATUSCODE_GOOD)
         return;
 
     size_t tmpPos = 0;
     UA_TcpMessageHeader_encodeBinary(&ackHeader, &ack_msg, &tmpPos);
     UA_TcpAcknowledgeMessage_encodeBinary(&ackMessage, &ack_msg, &tmpPos);
-    if(connection->write(connection, &ack_msg, ackHeader.messageSize) != UA_STATUSCODE_GOOD)
-        connection->releaseWriteBuffer(connection, &ack_msg);
+    if(connection->send(connection, &ack_msg, ackHeader.messageSize) != UA_STATUSCODE_GOOD)
+        connection->releaseSendBuffer(connection, &ack_msg);
 }
 
 static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
@@ -111,7 +111,7 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
                                                UA_ENCODINGOFFSET_BINARY);
 
     UA_ByteString resp_msg;
-    retval = connection->getWriteBuffer(connection, &resp_msg);
+    retval = connection->getSendBuffer(connection, &resp_msg);
     if(retval != UA_STATUSCODE_GOOD) {
         UA_OpenSecureChannelResponse_deleteMembers(&p);
         UA_AsymmetricAlgorithmSecurityHeader_deleteMembers(&asymHeader);
@@ -125,16 +125,15 @@ static void processOPN(UA_Connection *connection, UA_Server *server, const UA_By
     retval |= UA_OpenSecureChannelResponse_encodeBinary(&p, &resp_msg, &tmpPos);
 
     if(retval != UA_STATUSCODE_GOOD) {
-        connection->releaseWriteBuffer(connection, &resp_msg);
+        connection->releaseSendBuffer(connection, &resp_msg);
         connection->close(connection);
     } else {
         respHeader.messageHeader.messageSize = tmpPos;
         tmpPos = 0;
         UA_SecureConversationMessageHeader_encodeBinary(&respHeader, &resp_msg, &tmpPos);
 
-        if(connection->write(connection, &resp_msg,
-                             respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
-            connection->releaseWriteBuffer(connection, &resp_msg);
+        if(connection->send(connection, &resp_msg, respHeader.messageHeader.messageSize) != UA_STATUSCODE_GOOD)
+            connection->releaseSendBuffer(connection, &resp_msg);
     }
 
     UA_OpenSecureChannelResponse_deleteMembers(&p);
