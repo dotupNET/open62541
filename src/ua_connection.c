@@ -28,6 +28,9 @@ void UA_Connection_deleteMembers(UA_Connection *connection) {
     UA_ByteString_deleteMembers(&connection->incompleteMessage);
 }
 
+/**
+ *
+ */
 UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received) {
     if(received.length == -1)
         return received;

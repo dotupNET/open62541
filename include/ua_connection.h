@@ -22,12 +22,6 @@ extern "C" {
 
 #include "ua_types.h"
 
-/**
- * @defgroup communication Communication
- *
- * @{
- */
-
 typedef enum UA_ConnectionState {
     UA_CONNECTION_OPENING, ///< The socket is open, but the HEL/ACK handshake is not done
     UA_CONNECTION_ESTABLISHED, ///< The socket is open and the connection configured
@@ -100,8 +94,6 @@ void UA_EXPORT UA_Connection_attachSecureChannel(UA_Connection *connection, UA_S
 /** Returns a string of complete message (the length entry is decoded for that).
     If the received message is incomplete, it is retained in the connection. */
 UA_ByteString UA_EXPORT UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received);
-
-/** @} */
 
 #ifdef __cplusplus
 } // extern "C"

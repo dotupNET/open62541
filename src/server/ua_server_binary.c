@@ -51,8 +51,7 @@ static void processHEL(UA_Connection *connection, const UA_ByteString *msg, size
         connection->releaseSendBuffer(connection, &ack_msg);
 }
 
-static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg,
-                       size_t *pos) {
+static void processOPN(UA_Connection *connection, UA_Server *server, const UA_ByteString *msg, size_t *pos) {
     if(connection->state != UA_CONNECTION_ESTABLISHED) {
         connection->close(connection);
         return;
@@ -379,7 +378,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         }
 
         size_t targetpos = pos - 8 + tcpMessageHeader.messageSize;
-
         switch(tcpMessageHeader.messageTypeAndFinal & 0xffffff) {
         case UA_MESSAGETYPEANDFINAL_HELF & 0xffffff:
             processHEL(connection, msg, &pos);
@@ -393,7 +391,7 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
                 connection->close(connection);
                 UA_ByteString_deleteMembers(msg);
                 return;
-            }else
+            } else
 #endif
                 processMSG(connection, server, msg, &pos);
             break;
@@ -411,5 +409,5 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);
-    UA_ByteString_deleteMembers(msg);
+    connection->releaseRecvBuffer(connection, msg);
 }
