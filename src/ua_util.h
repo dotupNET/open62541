@@ -22,6 +22,22 @@
 # define UA_RESTRICT restrict
 #endif
 
+/* Visual Studio does not know fnct/unistd file access results */
+#ifdef _MSC_VER
+    #ifndef R_OK
+        #define R_OK    4               /* Test for read permission.  */
+    #endif
+    #ifndef R_OK
+        #define W_OK    2               /* Test for write permission.  */
+    #endif
+    #ifndef X_OK
+        #define X_OK    1               /* Test for execute permission.  */
+    #endif
+    #ifndef F_OK
+        #define F_OK    0               /* Test for existence.  */
+    #endif
+#endif
+
 #define UA_NULL ((void *)0)
 
 // subtract from nodeids to get from the encoding to the content
@@ -73,8 +89,11 @@
 # undef SLIST_ENTRY
 # define RAND(SEED) (UA_UInt32)rand()
 #else
-# include <sys/time.h>
-# define RAND(SEED) (UA_UInt32)rand_r(SEED)
+  #ifdef __CYGWIN__
+  extern int rand_r (unsigned int *__seed);
+  #endif
+  # include <sys/time.h>
+  # define RAND(SEED) (UA_UInt32)rand_r(SEED)
 #endif
 
 /*************************/

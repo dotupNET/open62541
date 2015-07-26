@@ -18,13 +18,13 @@ find_package(Git)
 if(GIT_FOUND)
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --abbrev=7 --dirty --always --tags RESULT_VARIABLE res_var OUTPUT_VARIABLE GIT_COM_ID )
     if( NOT ${res_var} EQUAL 0 )
-        set( GIT_COMMIT_ID "git commit id unknown")
+        set( GIT_COMMIT_ID "unknown--git-commit-id-unknown")
         message( WARNING "Git failed (not a repo, or no tags). Build will not contain git revision info." )
     else()
         string( REPLACE "\n" "" GIT_COMMIT_ID ${GIT_COM_ID} )
     endif()
 else()
-    set( GIT_COMMIT_ID "unknown (git not found!)")
+    set( GIT_COMMIT_ID "unknown--no-git-found")
     message( WARNING "Git not found. Build will not contain git revision info." )
 endif()
 add_definitions("-DVERSION=${GIT_COMMIT_ID}")
@@ -42,9 +42,9 @@ endif()
 # compiler flags
 if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     add_definitions(-std=c99 -pipe -Wall -Wextra -Werror -Wformat -Wno-unused-parameter
-                    -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
-                    -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
-                    -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
+                      -Wno-unused-function -Wno-unused-label -Wpointer-arith -Wreturn-type -Wsign-compare -Wmultichar
+                      -Wcast-qual -Wmissing-prototypes -Wstrict-prototypes # -Wshadow -Wconversion
+                      -Winit-self -Wuninitialized -Wformat-security -Wformat-nonliteral)
     # binary size reduction settings
 	add_definitions(-ffunction-sections -fdata-sections -fno-stack-protector -fno-unwind-tables
                     -fno-asynchronous-unwind-tables -fno-math-errno -fmerge-all-constants -fno-ident)
@@ -52,11 +52,12 @@ if(CMAKE_COMPILER_IS_GNUCC OR "x${CMAKE_C_COMPILER_ID}" STREQUAL "xClang")
     set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -Wl,--gc-sections")
     set(CMAKE_SHARED_LIBRARY_LINK_C_FLAGS "") # cmake sets -rdynamic by default
 	if(NOT WIN32)
+     if(NOT CYGWIN)
 	    add_definitions(-fvisibility=hidden -fPIC)
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -Wl,-z,norelro -Wl,--hash-style=gnu -Wl,--build-id=none")
+      endif()
 	endif()
     if(CMAKE_BUILD_TYPE STREQUAL "MinSizeRel" OR CMAKE_BUILD_TYPE STREQUAL "Release")
-#        add_definitions(-flto)
         set(CMAKE_C_LINK_FLAGS "${CMAKE_C_LINK_FLAGS} -s")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -s")
     endif()
@@ -72,20 +73,21 @@ set(exported_headers ${PROJECT_BINARY_DIR}/src_generated/ua_config.h
                      ${PROJECT_SOURCE_DIR}/include/ua_log.h
                      ${PROJECT_SOURCE_DIR}/include/ua_server.h
                      ${PROJECT_SOURCE_DIR}/include/ua_client.h
-                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h 
+                     ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.h
                      ${PROJECT_SOURCE_DIR}/examples/logger_stdout.h)
 set(internal_headers ${PROJECT_SOURCE_DIR}/src/ua_util.h
                      ${PROJECT_SOURCE_DIR}/deps/queue.h
                      ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
                      ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.h
                      ${PROJECT_SOURCE_DIR}/src/ua_securechannel.h
-                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodes.h
+                     ${PROJECT_SOURCE_DIR}/src/ua_session.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_session_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_securechannel_manager.h
                      ${PROJECT_SOURCE_DIR}/src/server/ua_server_internal.h
-                     ${PROJECT_SOURCE_DIR}/src/server/ua_services.h)
+                     ${PROJECT_SOURCE_DIR}/src/server/ua_services.h
+                     ${PROJECT_SOURCE_DIR}/src/client/ua_client_internal.h)
 set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/ua_types_encoding_binary.c
                 ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
@@ -107,12 +109,32 @@ set(lib_sources ${PROJECT_SOURCE_DIR}/src/ua_types.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_nodemanagement.c
                 ${PROJECT_SOURCE_DIR}/src/server/ua_services_view.c
                 ${PROJECT_SOURCE_DIR}/src/client/ua_client.c
-                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c 
+                ${PROJECT_SOURCE_DIR}/examples/networklayer_tcp.c
                 ${PROJECT_SOURCE_DIR}/examples/logger_stdout.c)
                 ##TODO: make client stuff optional
 
 ## generate code from xml definitions
 file(MAKE_DIRECTORY "${PROJECT_BINARY_DIR}/src_generated")
+
+option(ENABLE_SUBSCRIPTIONS "Enable compilation of subscription and monitoring support." OFF)
+if(ENABLE_SUBSCRIPTIONS)
+  add_definitions(-DENABLE_SUBSCRIPTIONS)
+  list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_subscription.c
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.c
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.c)
+  ##append subscription headers at before ua_session.
+  list(FIND internal_headers "${PROJECT_SOURCE_DIR}/src/ua_session.h" UaSessionPos)
+  list(INSERT internal_headers  ${UaSessionPos} ${PROJECT_SOURCE_DIR}/src/server/ua_subscription.h
+                          ${PROJECT_SOURCE_DIR}/src/server/ua_subscription_manager.h)
+
+  add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
+                            ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
+                     PRE_BUILD
+                     COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/generate_datatypes.py --enable-subscription-types=1 --typedescriptions ${PROJECT_SOURCE_DIR}/tools/schema/NodeIds.csv 0 ${PROJECT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd ${PROJECT_BINARY_DIR}/src_generated/ua_types
+                     DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
+                             ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+else()
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated.h
                    PRE_BUILD
@@ -120,6 +142,7 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_types_generated
                    DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/generate_datatypes.py
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/Opc.Ua.Types.bsd
                            ${CMAKE_CURRENT_SOURCE_DIR}/tools/schema/NodeIds.csv)
+endif()
 
 add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.c
                           ${PROJECT_BINARY_DIR}/src_generated/ua_transport_generated.h
@@ -144,12 +167,12 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_g
                    PRE_BUILD
                    COMMAND ${PYTHON_EXECUTABLE} ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py -i ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_AssumeExternal.txt -s description -b ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/NodeID_Blacklist.txt ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE} ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated
                    DEPENDS ${PROJECT_SOURCE_DIR}/tools/schema/namespace0/${GENERATE_NAMESPACE0_FILE}
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py  
-                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py  
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/generate_open62541CCode.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/logger.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/open62541_MacroHelper.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_builtin_types.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_constants.py
+                           ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_namespace.py
                            ${PROJECT_SOURCE_DIR}/tools/pyUANamespace/ua_node_types.py)
 
 list(APPEND internal_headers ${PROJECT_BINARY_DIR}/src_generated/ua_namespaceinit_generated.h)
@@ -159,10 +182,17 @@ endif()
 ## logging
 set(UA_LOGLEVEL 300 CACHE STRING "Level at which logs shall be reported")
 
+# Enable Methodcall service
+option(ENABLE_METHODCALLS "Enable CallMethod/MethodCall service set" OFF)
+if(ENABLE_METHODCALLS)
+    add_definitions(-DENABLE_METHODCALLS)
+    list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_services_call.c)
+endif()
+
 ## multithreading
 option(ENABLE_MULTITHREADING "Enable multithreading (experimental)" OFF)
 if(ENABLE_MULTITHREADING)
-    add_definitions(-DUA_MULTITHREADING)
+	set(UA_MULTITHREADING ON) #to propagate it to the config file
     find_package(Threads REQUIRED)
     list(APPEND lib_sources ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_concurrent.c)
 else()
@@ -216,11 +246,11 @@ add_custom_command(OUTPUT ${PROJECT_BINARY_DIR}/open62541.c
                DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/tools/amalgamate.py ${internal_headers} ${PROJECT_SOURCE_DIR}/src/server/ua_nodestore_hash.inc ${lib_sources})
 
 if(ENABLE_AMALGAMATION)
-    add_definitions(-DUA_AMALGAMATE)
     add_custom_target(amalgamation ALL DEPENDS ${PROJECT_BINARY_DIR}/open62541.h ${PROJECT_BINARY_DIR}/open62541.c)
     add_library(open62541-object OBJECT ${PROJECT_BINARY_DIR}/open62541.c ${PROJECT_BINARY_DIR}/open62541.h)
     include_directories(${PROJECT_BINARY_DIR})
 else()
+    add_definitions(-DUA_NO_AMALGAMATION)
     add_library(open62541-object OBJECT ${lib_sources} ${internal_headers} ${exported_headers})
     include_directories(${PROJECT_SOURCE_DIR}/include)
     include_directories(${PROJECT_SOURCE_DIR}/deps)
@@ -256,24 +286,20 @@ option(BUILD_EXAMPLESERVER "Build the example server" OFF)
 if(BUILD_EXAMPLESERVER)
     set(server_source $<TARGET_OBJECTS:open62541-object>)
     add_executable(server_static examples/server.c ${server_source})
-    add_executable(server_simple examples/server_simple.c ${server_source})
     add_executable(server examples/server.c)
     if(ENABLE_AMALGAMATION)
-       ADD_DEPENDENCIES(server amalgamation) 
+       ADD_DEPENDENCIES(server amalgamation)
     endif()
     target_link_libraries(server open62541)
     if(WIN32)
         target_link_libraries(server_static ws2_32)
-        target_link_libraries(server_simple ws2_32)
         target_link_libraries(server ws2_32)
     else()
         target_link_libraries(server_static rt)
-        target_link_libraries(server_simple rt)
         target_link_libraries(server rt)
     endif()
     if(ENABLE_MULTITHREADING)
         target_link_libraries(server_static urcu-cds urcu urcu-common pthread)
-        target_link_libraries(server_simple urcu-cds urcu urcu-common pthread)
         target_link_libraries(server urcu-cds urcu urcu-common pthread)
     endif()
 endif()
@@ -299,7 +325,7 @@ if(BUILD_EXAMPLECLIENT)
 	add_executable(client_static examples/client.c ${client_source})
     add_executable(client examples/client.c)
 	if(ENABLE_AMALGAMATION)
-	   ADD_DEPENDENCIES(client amalgamation) 
+	   ADD_DEPENDENCIES(client amalgamation)
 	endif()
 	target_link_libraries(client open62541)
     if(WIN32)
@@ -327,6 +353,11 @@ if(BUILD_UNIT_TESTS)
 	add_definitions(-DBUILD_UNIT_TESTS)
     enable_testing()
     add_subdirectory(tests)
+endif()
+
+option(BUILD_EXAMPLES "Build example servers and clients" OFF)
+if(BUILD_EXAMPLES)
+    add_subdirectory(examples)
 endif()
 
 # build documentation

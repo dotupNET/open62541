@@ -6,6 +6,7 @@
 #include "ua_statuscodes.h"
 #include "ua_securechannel_manager.h"
 #include "ua_session_manager.h"
+
 /** Max size of messages that are allocated on the stack */
 #define MAX_STACK_MESSAGE 65536
 
@@ -154,16 +155,12 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
     init_response_header(request, response);
     /* try to get the session from the securechannel first */
     UA_Session *session = UA_SecureChannel_getSession(channel, &request->authenticationToken);
-    if(!session)
-        session = UA_SessionManager_getSession(&server->sessionManager, &request->authenticationToken);
-    if(!session)
+    if(!session || session->channel != channel) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
-    else if(session->activated == UA_FALSE) {
+    } else if(session->activated == UA_FALSE) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
         /* the session is invalidated FIXME: do this delayed*/
-        UA_SessionManager_removeSession(&server->sessionManager, &request->authenticationToken);
-    } else if(session->channel != channel) {
-        response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
+        UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken);
     } else {
         UA_Session_updateLifetime(session);
         service(server, session, request, response);
@@ -296,7 +293,7 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
         UA_ActivateSessionResponse_deleteMembers(&r);
         break;
     }
-
+    
     case UA_NS0ID_CLOSESESSIONREQUEST:
         INVOKE_SERVICE(CloseSession, UA_TYPES_CLOSESESSIONRESPONSE);
         break;
@@ -324,6 +321,31 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     case UA_NS0ID_TRANSLATEBROWSEPATHSTONODEIDSREQUEST:
         INVOKE_SERVICE(TranslateBrowsePathsToNodeIds, UA_TYPES_TRANSLATEBROWSEPATHSTONODEIDSRESPONSE);
         break;
+#ifdef ENABLE_SUBSCRIPTIONS    
+    case UA_NS0ID_CREATESUBSCRIPTIONREQUEST:
+        INVOKE_SERVICE(CreateSubscription, UA_TYPES_CREATESUBSCRIPTIONRESPONSE);
+        break;
+    case UA_NS0ID_PUBLISHREQUEST:
+        INVOKE_SERVICE(Publish, UA_TYPES_PUBLISHRESPONSE);
+        break;
+    case UA_NS0ID_MODIFYSUBSCRIPTIONREQUEST:
+        INVOKE_SERVICE(ModifySubscription, UA_TYPES_MODIFYSUBSCRIPTIONRESPONSE);
+        break;
+    case UA_NS0ID_DELETESUBSCRIPTIONSREQUEST:
+        INVOKE_SERVICE(DeleteSubscriptions, UA_TYPES_DELETESUBSCRIPTIONSRESPONSE);
+        break;
+    case UA_NS0ID_CREATEMONITOREDITEMSREQUEST:
+        INVOKE_SERVICE(CreateMonitoredItems, UA_TYPES_CREATEMONITOREDITEMSRESPONSE);
+        break;
+    case UA_NS0ID_DELETEMONITOREDITEMSREQUEST:
+        INVOKE_SERVICE(DeleteMonitoredItems, UA_TYPES_DELETEMONITOREDITEMSRESPONSE);
+        break;
+#endif
+#ifdef ENABLE_METHODCALLS
+    case UA_NS0ID_CALLREQUEST:
+        INVOKE_SERVICE(Call, UA_TYPES_CALLRESPONSE);
+	break;
+#endif
 #ifdef ENABLE_ADDNODES 
     case UA_NS0ID_ADDNODESREQUEST:
         INVOKE_SERVICE(AddNodes, UA_TYPES_ADDNODESRESPONSE);

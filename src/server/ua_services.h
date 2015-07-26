@@ -71,7 +71,7 @@ void Service_CloseSecureChannel(UA_Server *server, UA_Int32 channelId);
 /**
  * Used by an OPC UA Client to create a Session and the Server returns two
  * values which uniquely identify the Session. The first value is the sessionId
- * which is used to identify the Session in the audit logs and in the Server’s
+ * which is used to identify the Session in the audit logs and in the Server's
  * address space. The second is the authenticationToken which is used to
  * associate an incoming request with a Session.
  */
@@ -188,6 +188,11 @@ void Service_UnregisterNodes(UA_Server *server, UA_Session *session, const UA_Un
  * @{
  */
 
+/* Mock-Up of the function signature for Unit Tests */
+#ifdef BUILD_UNIT_TESTS
+UA_StatusCode parse_numericrange(const UA_String str, UA_NumericRange *range);
+#endif
+
 /**
  * Used to read one or more Attributes of one or more Nodes. For constructed
  * Attribute values whose elements are indexed, such as an array, this Service
@@ -212,6 +217,12 @@ void readValue(UA_Server *server, UA_TimestampsToReturn timestamps,
  */
 void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest *request,
                    UA_WriteResponse *response);
+
+/* Mock-Up of the function signature for Unit Tests */
+#ifdef BUILD_UNIT_TESTS
+UA_StatusCode writeValue(UA_Server *server, UA_WriteValue *wvalue);
+#endif
+
 // Service_HistoryUpdate
 /** @} */
 
@@ -226,6 +237,7 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
 // Service_Call
 /** @} */
 
+#ifdef ENABLE_SUBSCRIPTIONS
 /**
  * @name MonitoredItem Service Set
  *
@@ -243,13 +255,16 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
  * links to be deleted, but has no effect on the MonitoredItems referenced by
  * the triggered items.
  */
-/* UA_Int32 Service_CreateMonitoredItems(UA_Server *server, UA_Session *session, */
-/*                                       const UA_CreateMonitoredItemsRequest *request, */
-/*                                       UA_CreateMonitoredItemsResponse *response); */
+void Service_CreateMonitoredItems(UA_Server *server, UA_Session *session,
+                                       const UA_CreateMonitoredItemsRequest *request, 
+                                       UA_CreateMonitoredItemsResponse *response);
 // Service_ModifyMonitoredItems
 // Service_SetMonitoringMode
 // Service_SetTriggering
-// Service_DeleteMonitoredItems
+void Service_DeleteMonitoredItems(UA_Server *server, UA_Session *session,
+                                  const UA_DeleteMonitoredItemsRequest *request,
+                                  UA_DeleteMonitoredItemsResponse *response);
+                                      
 /** @} */
 
 /**
@@ -259,24 +274,37 @@ void Service_Write(UA_Server *server, UA_Session *session, const UA_WriteRequest
  *
  * @{
  */
-// Service_CreateSubscription
-/* UA_Int32 Service_CreateSubscription(UA_Server *server, UA_Session *session, */
-/*                                     const UA_CreateSubscriptionRequest *request, */
-/*                                     UA_CreateSubscriptionResponse *response); */
-// Service_ModifySubscription
-// Service_SetPublishingMode
-/* UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session, */
-/*                                    const UA_SetPublishingModeRequest *request, */
-/*                                    UA_SetPublishingModeResponse *response); */
+    
+void Service_CreateSubscription(UA_Server *server, UA_Session *session,
+                                const UA_CreateSubscriptionRequest *request,
+                                UA_CreateSubscriptionResponse *response);
 
-/* UA_Int32 Service_Publish(UA_Server *server, UA_Session *session, */
-/*                          const UA_PublishRequest *request, */
-/*                          UA_PublishResponse *response); */
+void Service_ModifySubscription(UA_Server *server, UA_Session *session,
+                                const UA_ModifySubscriptionRequest *request,
+                                UA_ModifySubscriptionResponse *response);
 
+void Service_DeleteSubscriptions(UA_Server *server, UA_Session *session,
+                                 const UA_DeleteSubscriptionsRequest *request,
+                                 UA_DeleteSubscriptionsResponse *response);
+                                     
+void Service_Publish(UA_Server *server, UA_Session *session,
+                     const UA_PublishRequest *request, UA_PublishResponse *response);
+                         
+//~ Service_ModifySubscription
+//~ Service_SetPublishingMode
+//~ UA_Int32 Service_SetPublishingMode(UA_Server *server, UA_Session *session,
+                                    //~ const UA_SetPublishingModeRequest *request,
+                                    //~ UA_SetPublishingModeResponse *response);
 // Service_Republish
 // Service_TransferSubscription
 // Service_DeleteSubscription
 /** @} */
 /** @} */
+#endif
 
+#ifdef ENABLE_METHODCALLS
+void Service_Call(UA_Server *server, UA_Session *session,
+                  const UA_CallRequest *request,
+                  UA_CallResponse *response);
+#endif
 #endif /* UA_SERVICES_H_ */

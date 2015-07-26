@@ -60,6 +60,13 @@ UA_DeleteReferencesResponse UA_EXPORT
 
 
 /* Client-Side Macro/Procy functions */
+#ifdef ENABLE_METHODCALLS
+UA_CallResponse UA_EXPORT UA_Client_call(UA_Client *client, UA_CallRequest *request);
+UA_StatusCode UA_EXPORT UA_Client_CallServerMethod(UA_Client *client, UA_NodeId objectNodeId, UA_NodeId methodNodeId,
+                                                   UA_Int32 inputSize, const UA_Variant *input,
+                                                   UA_Int32 *outputSize, UA_Variant **output);
+#endif
+    
 UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectNode(  UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
                                                             UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
                                                             UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
@@ -77,6 +84,20 @@ UA_AddNodesResponse UA_EXPORT *UA_Client_createReferenceTypeNode(UA_Client *clie
 UA_AddNodesResponse UA_EXPORT *UA_Client_createObjectTypeNode(UA_Client *client, UA_ExpandedNodeId reqId, UA_QualifiedName browseName, UA_LocalizedText displayName, 
                                                             UA_LocalizedText description, UA_ExpandedNodeId parentNodeId, UA_NodeId referenceTypeId,
                                                             UA_UInt32 userWriteMask, UA_UInt32 writeMask, UA_ExpandedNodeId typeDefinition);
+
+
+#ifdef ENABLE_SUBSCRIPTIONS
+UA_Int32      UA_EXPORT UA_Client_newSubscription(UA_Client *client, UA_Int32 publishInterval);
+UA_StatusCode UA_EXPORT UA_Client_removeSubscription(UA_Client *client, UA_UInt32 subscriptionId);
+//void UA_EXPORT UA_Client_modifySubscription(UA_Client *client);
+void UA_EXPORT UA_Client_doPublish(UA_Client *client);
+
+UA_UInt32     UA_EXPORT UA_Client_monitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
+                                                     UA_NodeId nodeId, UA_UInt32 attributeID,
+                                                     void *handlingFunction);
+UA_StatusCode UA_EXPORT UA_Client_unMonitorItemChanges(UA_Client *client, UA_UInt32 subscriptionId,
+                                                       UA_UInt32 monitoredItemId );
+#endif
 
 #ifdef __cplusplus
 } // extern "C"

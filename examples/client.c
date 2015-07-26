@@ -1,17 +1,23 @@
-#ifdef UA_AMALGAMATE
-# include "open62541.h"
-# include <string.h>
-# include <stdlib.h>
-#else
+#ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
 # include "ua_client.h"
 # include "ua_nodeids.h"
 # include "networklayer_tcp.h"
 # include "logger_stdout.h"
 # include "ua_types_encoding_binary.h"
+#else
+# include "open62541.h"
+# include <string.h>
+# include <stdlib.h>
 #endif
 
 #include <stdio.h>
+
+void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value);
+void handler_TheAnswerChanged(UA_UInt32 handle, UA_DataValue *value) {
+    printf("The Answer has changed!\n");
+    return;
+}
 
 int main(int argc, char *argv[]) {
     UA_Client *client = UA_Client_new(UA_ClientConfig_standard, Logger_Stdout_new());
@@ -53,7 +59,28 @@ int main(int argc, char *argv[]) {
     }
     UA_BrowseRequest_deleteMembers(&bReq);
     UA_BrowseResponse_deleteMembers(&bResp);
-
+    
+#ifdef ENABLE_SUBSCRIPTIONS
+    // Create a subscription with interval 0 (immediate)...
+    UA_Int32 subId = UA_Client_newSubscription(client, 0);
+    if (subId)
+        printf("Create subscription succeeded, id %u\n", subId);
+    
+    // .. and monitor TheAnswer
+    UA_NodeId monitorThis;
+    monitorThis = UA_NODEID_STRING_ALLOC(1, "the.answer");
+    UA_UInt32 monId = UA_Client_monitorItemChanges(client, subId, monitorThis, UA_ATTRIBUTEID_VALUE, &handler_TheAnswerChanged );
+    if (monId)
+        printf("Monitoring 'the.answer', id %u\n", subId);
+    UA_NodeId_deleteMembers(&monitorThis);
+    
+    // First Publish always generates data (current value) and call out handler.
+    UA_Client_doPublish(client);
+    
+    // This should not generate anything
+    UA_Client_doPublish(client);
+#endif
+    
     UA_Int32 value = 0;
     // Read node's value
     printf("\nReading the value of node (1, \"the.answer\"):\n");
@@ -95,6 +122,40 @@ int main(int argc, char *argv[]) {
             printf("the new value is: %i\n", value);
     UA_WriteRequest_deleteMembers(&wReq);
     UA_WriteResponse_deleteMembers(&wResp);
+
+#ifdef ENABLE_SUBSCRIPTIONS
+    // Take another look at the.answer... this should call the handler.
+    UA_Client_doPublish(client);
+    
+    // Delete our subscription (which also unmonitors all items)
+    if(!UA_Client_removeSubscription(client, subId))
+        printf("Subscription removed\n");
+#endif
+    
+#ifdef ENABLE_METHODCALLS
+    /* Note:  This example requires Namespace 0 Node 11489 (ServerType -> GetMonitoredItems) 
+       FIXME: Provide a namespace 0 independant example on the server side
+     */
+    UA_Variant input;
+    
+    UA_String argString = UA_STRING("Hello Server");
+    UA_Variant_init(&input);
+    UA_Variant_setScalarCopy(&input, &argString, &UA_TYPES[UA_TYPES_STRING]);
+    
+    UA_Int32 outputSize;
+    UA_Variant *output;
+    
+    retval = UA_Client_CallServerMethod(client, UA_NODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER),
+                                        UA_NODEID_NUMERIC(1, 62541), 1, &input, &outputSize, &output);
+    if(retval == UA_STATUSCODE_GOOD) {
+        printf("Method call was successfull, and %i returned values available.\n", outputSize);
+        UA_Array_delete(output, &UA_TYPES[UA_TYPES_VARIANT], outputSize);
+    } else {
+        printf("Method call was unsuccessfull, and %x returned values available.\n", retval);
+    }
+    UA_Variant_deleteMembers(&input);
+
+#endif
 
 #ifdef ENABLE_ADDNODES 
     /* Create a new object type node */
@@ -172,7 +233,6 @@ int main(int argc, char *argv[]) {
     free(theValue);
     /* Done creating a new node*/
 #endif
-
     UA_Client_disconnect(client);
     UA_Client_delete(client);
     return UA_STATUSCODE_GOOD;

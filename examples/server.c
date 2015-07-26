@@ -2,15 +2,18 @@
  * This work is licensed under a Creative Commons CCZero 1.0 Universal License.
  * See http://creativecommons.org/publicdomain/zero/1.0/ for more information.
  */
+//to compile with single file releases:
+// * single-threaded: gcc -std=c99 server.c open62541.c -o server
+// * multi-threaded: gcc -std=c99 server.c open62541.c -o server -lurcu-cds -lurcu -lurcu-common -lpthread
 
-#ifdef UA_AMALGAMATE
-# include "open62541.h"
-#else
+#ifdef UA_NO_AMALGAMATION
 # include <time.h>
 # include "ua_types.h"
 # include "ua_server.h"
 # include "logger_stdout.h"
 # include "networklayer_tcp.h"
+#else
+# include "open62541.h"
 #endif
 
 #include <signal.h>
@@ -24,11 +27,14 @@
 # include <unistd.h> //access
 #endif
 
-#define __USE_XOPEN2K
 #ifdef UA_MULTITHREADING
-# include <pthread.h>
+# ifdef UA_NO_AMALGAMATION
+#  ifndef __USE_XOPEN2K
+#   define __USE_XOPEN2K
+#  endif
+# endif
+#include <pthread.h>
 #endif
-
 /****************************/
 /* Server-related variables */
 /****************************/
@@ -77,7 +83,8 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, c
 	if(!currentTemperature)
 		return UA_STATUSCODE_BADOUTOFMEMORY;
 
-	fseek(temperatureFile, 0, SEEK_SET);
+	rewind(temperatureFile);
+	fflush(temperatureFile);
 
 	if(fscanf(temperatureFile, "%lf", currentTemperature) != 1){
 		UA_LOG_WARNING(logger, UA_LOGCATEGORY_USERLAND, "Can not parse temperature");
@@ -86,6 +93,8 @@ static UA_StatusCode readTemperature(void *handle, UA_Boolean sourceTimeStamp, c
 
 	*currentTemperature /= 1000.0;
 
+	value->sourceTimestamp = UA_DateTime_now();
+	value->hasSourceTimestamp = UA_TRUE;
 	value->value.type = &UA_TYPES[UA_TYPES_DOUBLE];
 	value->value.arrayLength = -1;
 	value->value.data = currentTemperature;
@@ -122,7 +131,7 @@ static UA_StatusCode readLedStatus(void *handle, UA_Boolean sourceTimeStamp, con
 static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const UA_NumericRange *range) {
     if(range)
         return UA_STATUSCODE_BADINDEXRANGEINVALID;
-    
+
 #ifdef UA_MULTITHREADING
 	pthread_rwlock_wrlock(&writeLock);
 #endif
@@ -144,6 +153,15 @@ static UA_StatusCode writeLedStatus(void *handle, const UA_Variant *data, const 
 #endif
 	return UA_STATUSCODE_GOOD;
 }
+
+#ifdef ENABLE_METHODCALLS
+static UA_StatusCode getMonitoredItems(const UA_NodeId objectId, const UA_Variant *input, UA_Variant *output) {
+    UA_String tmp = UA_STRING("Hello World");
+    UA_Variant_setScalarCopy(output, &tmp, &UA_TYPES[UA_TYPES_STRING]);
+    printf("getMonitoredItems was called\n");
+    return UA_STATUSCODE_GOOD;
+}
+#endif
 
 static void stopHandler(int sign) {
     UA_LOG_INFO(logger, UA_LOGCATEGORY_SERVER, "Received Ctrl-C\n");
@@ -252,6 +270,10 @@ int main(int argc, char** argv) {
    UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Array"), UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(1, DEMOID),
                            UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
 
+#define MATRIXID 50003
+   UA_Server_addObjectNode(server,UA_QUALIFIEDNAME(1, "Matrix"), UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(1, DEMOID),
+                           UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES), UA_NODEID_NUMERIC(0, UA_NS0ID_FOLDERTYPE));
+
    UA_UInt32 id = 51000; //running id in namespace 0
    for(UA_UInt32 type = 0; UA_IS_BUILTIN(type); type++) {
        if(type == UA_TYPES_VARIANT || type == UA_TYPES_DIAGNOSTICINFO)
@@ -262,17 +284,56 @@ int main(int argc, char** argv) {
         UA_Variant_setScalar(variant, value, &UA_TYPES[type]);
         char name[15];
         sprintf(name, "%02d", type);
-        UA_QualifiedName myIntegerName = UA_QUALIFIEDNAME(1, name);
-        UA_Server_addVariableNode(server, variant, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+        UA_QualifiedName qualifiedName = UA_QUALIFIEDNAME(1, name);
+        UA_Server_addVariableNode(server, variant, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, SCALARID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
 
         //add an array node for every built-in type
         UA_Variant *arrayvar = UA_Variant_new();
         UA_Variant_setArray(arrayvar, UA_Array_new(&UA_TYPES[type], 10), 10, &UA_TYPES[type]);
-        UA_Server_addVariableNode(server, arrayvar, myIntegerName, UA_NODEID_NUMERIC(1, ++id),
+        UA_Server_addVariableNode(server, arrayvar, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
                                   UA_NODEID_NUMERIC(1, ARRAYID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
+
+        //add an matrix node for every built-in type
+        arrayvar = UA_Variant_new();
+        void* myMultiArray = UA_Array_new(&UA_TYPES[type],9);
+        arrayvar->arrayDimensions = UA_Array_new(&UA_TYPES[UA_TYPES_INT32],2);
+        arrayvar->arrayDimensions[0] = 3;
+        arrayvar->arrayDimensions[1] = 3;
+        arrayvar->arrayDimensionsSize = 2;
+        arrayvar->arrayLength = 9;
+        arrayvar->data = myMultiArray;
+        arrayvar->type = &UA_TYPES[type];
+        UA_Server_addVariableNode(server, arrayvar, qualifiedName, UA_NODEID_NUMERIC(1, ++id),
+                                  UA_NODEID_NUMERIC(1, MATRIXID), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES));
    }
 
+
+
+
+#ifdef ENABLE_METHODCALLS
+   UA_Argument inputArguments;
+   UA_Argument_init(&inputArguments);
+   inputArguments.arrayDimensionsSize = -1;
+   inputArguments.arrayDimensions = NULL;
+   inputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+   inputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
+   inputArguments.name = UA_STRING("Input an integer");
+   inputArguments.valueRank = -1;
+
+   UA_Argument outputArguments;
+   UA_Argument_init(&outputArguments);
+   outputArguments.arrayDimensionsSize = -1;
+   outputArguments.arrayDimensions = NULL;
+   outputArguments.dataType = UA_TYPES[UA_TYPES_STRING].typeId;
+   outputArguments.description = UA_LOCALIZEDTEXT("en_US", "A String");
+   outputArguments.name = UA_STRING("Input an integer");
+   outputArguments.valueRank = -1;
+
+   UA_Server_addMethodNode(server, UA_QUALIFIEDNAME(1,"ping"), UA_NODEID_NUMERIC(1,62541),
+                           UA_EXPANDEDNODEID_NUMERIC(0, UA_NS0ID_OBJECTSFOLDER), UA_NODEID_NUMERIC(0, UA_NS0ID_ORGANIZES),
+                           &getMonitoredItems, 1, &inputArguments, 1, &outputArguments);
+#endif
 	//start server
 	UA_StatusCode retval = UA_Server_run(server, 1, &running); //blocks until running=false
 
