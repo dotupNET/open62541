@@ -571,7 +571,7 @@ UA_StatusCode UA_Server_run_mainloop(UA_Server *server, UA_Boolean *running) {
 #ifdef UA_MULTITHREADING
         /* Filter out delayed work */
         for(UA_Int32 k=0;k<jobsSize;k++) {
-            if(jobs[k].type != UA_JOBTYPE_DELAYEDMETHODCALL)
+            if(jobs[k].type != UA_JOBTYPE_METHODCALL_DELAYED)
                 continue;
             addDelayedJob(server, &jobs[k]);
             jobs[k].type = UA_JOBTYPE_NOTHING;
