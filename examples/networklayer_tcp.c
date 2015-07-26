@@ -97,7 +97,6 @@ static UA_StatusCode socket_recv(UA_Connection *connection, UA_ByteString *respo
         }
     }
     response->length = ret;
-    *response = UA_Connection_completeMessages(connection, *response);
     return UA_STATUSCODE_GOOD;
 }
 
@@ -176,7 +175,7 @@ typedef struct {
     } *mappings;
 } ServerNetworkLayerTCP;
 
-static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_ByteString *buf) {
+static UA_StatusCode ServerNetworkLayerGetSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
 #ifdef UA_MULTITHREADING
     return UA_ByteString_newMembers(buf, connection->remoteConf.recvBufferSize);
 #else
@@ -186,10 +185,14 @@ static UA_StatusCode ServerNetworkLayerGetBuffer(UA_Connection *connection, UA_B
 #endif
 }
 
-static void ServerNetworkLayerReleaseBuffer(UA_Connection *connection, UA_ByteString *buf) {
+static void ServerNetworkLayerReleaseSendBuffer(UA_Connection *connection, UA_ByteString *buf) {
 #ifdef UA_MULTITHREADING
     UA_ByteString_deleteMembers(buf);
 #endif
+}
+
+static void ServerNetworkLayerReleaseRecvBuffer(UA_Connection *connection, UA_ByteString *buf) {
+    UA_ByteString_deleteMembers(buf);
 }
 
 /* after every select, we need to reset the sockets we want to listen on */
@@ -237,9 +240,9 @@ static UA_StatusCode ServerNetworkLayerTCP_add(ServerNetworkLayerTCP *layer, UA_
     c->localConf = layer->conf;
     c->send = socket_write;
     c->close = ServerNetworkLayerTCP_closeConnection;
-    c->getSendBuffer = ServerNetworkLayerGetBuffer;
-    c->releaseSendBuffer = ServerNetworkLayerReleaseBuffer;
-    c->releaseRecvBuffer = ServerNetworkLayerReleaseBuffer;
+    c->getSendBuffer = ServerNetworkLayerGetSendBuffer;
+    c->releaseSendBuffer = ServerNetworkLayerReleaseSendBuffer;
+    c->releaseRecvBuffer = ServerNetworkLayerReleaseRecvBuffer;
     c->state = UA_CONNECTION_OPENING;
     struct ConnectionMapping *nm =
         realloc(layer->mappings, sizeof(struct ConnectionMapping)*(layer->mappingsSize+1));
@@ -275,7 +278,8 @@ static UA_StatusCode ServerNetworkLayerTCP_start(UA_ServerNetworkLayer *nl, UA_L
     if(setsockopt(layer->serversockfd, SOL_SOCKET,
                   SO_REUSEADDR, (const char *)&optval,
                   sizeof(optval)) == -1) {
-        UA_LOG_WARNING((*layer->logger), UA_LOGCATEGORY_COMMUNICATION, "Error during setting of socket options");
+        UA_LOG_WARNING((*layer->logger), UA_LOGCATEGORY_COMMUNICATION,
+                       "Error during setting of socket options");
         CLOSESOCKET(layer->serversockfd);
         return UA_STATUSCODE_BADINTERNALERROR;
     }
@@ -336,9 +340,7 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job 
         if(socket_recv(layer->mappings[i].connection, &buf, 0) == UA_STATUSCODE_GOOD) {
             if(!buf.data)
                 continue;
-            js[j].type = UA_JOBTYPE_BINARYMESSAGE;
-            js[j].job.binaryMessage.message = buf;
-            js[j].job.binaryMessage.connection = layer->mappings[i].connection;
+            js[j] = UA_Connection_completeMessages(layer->mappings[i].connection, buf);
         } else {
             UA_Connection *c = layer->mappings[i].connection;
             /* the socket is already closed */
@@ -348,7 +350,7 @@ static UA_Int32 ServerNetworkLayerTCP_getJobs(UA_ServerNetworkLayer *nl, UA_Job 
             layer->mappingsSize--;
             j++;
             i--; // iterate over the same index again
-            js[j].type = UA_JOBTYPE_DELAYEDMETHODCALL;
+            js[j].type = UA_JOBTYPE_METHODCALL_DELAYED;
             js[j].job.methodCall.method = FreeConnectionCallback;
             js[j].job.methodCall.data = c;
         }
@@ -368,7 +370,7 @@ static UA_Int32 ServerNetworkLayerTCP_stop(UA_ServerNetworkLayer *nl, UA_Job **j
         socket_close(layer->mappings[i].connection);
         items[i*2].type = UA_JOBTYPE_DETACHCONNECTION;
         items[i*2].job.closeConnection = layer->mappings[i].connection;
-        items[(i*2)+1].type = UA_JOBTYPE_DELAYEDMETHODCALL;
+        items[(i*2)+1].type = UA_JOBTYPE_METHODCALL_DELAYED;
         items[(i*2)+1].job.methodCall.method = FreeConnectionCallback;
         items[(i*2)+1].job.methodCall.data = layer->mappings[i].connection;
     }

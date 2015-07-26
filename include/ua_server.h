@@ -24,8 +24,9 @@ extern "C" {
 #include "ua_types.h"
 #include "ua_types_generated.h"
 #include "ua_nodeids.h"
-#include "ua_connection.h"
 #include "ua_log.h"
+#include "ua_job.h"
+#include "ua_connection.h"
 
 /**
  * @defgroup server Server
@@ -46,9 +47,6 @@ typedef struct UA_ServerConfig {
 } UA_ServerConfig;
 
 extern UA_EXPORT const UA_ServerConfig UA_ServerConfig_standard;
-
-struct UA_Server;
-typedef struct UA_Server UA_Server;
 
 UA_Server UA_EXPORT * UA_Server_new(UA_ServerConfig config);
 void UA_EXPORT UA_Server_setServerCertificate(UA_Server *server, UA_ByteString certificate);
@@ -155,29 +153,6 @@ UA_Server_addMethodNode(UA_Server *server, const UA_QualifiedName browseName, UA
                         const UA_Argument *inputArguments, UA_Int32 outputArgumentsSize,
                         const UA_Argument *outputArguments);
 #endif
-
-/** Jobs describe work that is executed once or repeatedly in the server */
-typedef struct {
-    enum {
-        UA_JOBTYPE_NOTHING, ///< Guess what?
-        UA_JOBTYPE_DETACHCONNECTION, ///< Detach the connection from the secure channel (but don't delete it)
-        UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER, ///< The binary message is memory managed by the network layer
-        UA_JOBTYPE_BINARYMESSAGE_INTERNAL, ///< The binary message is memory allocated by the server
-        UA_JOBTYPE_METHODCALL, ///< Call the method as soon as possible
-        UA_JOBTYPE_METHODCALL_DELAYED, ///< Call the method as soon as all previous jobs have finished
-    } type;
-    union {
-        UA_Connection *closeConnection;
-        struct {
-            UA_Connection *connection;
-            UA_ByteString message;
-        } binaryMessage;
-        struct {
-            void *data;
-            void (*method)(UA_Server *server, void *data);
-        } methodCall;
-    } job;
-} UA_Job;
 
 /**
  * @param server The server object.

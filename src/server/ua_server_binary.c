@@ -408,7 +408,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifndef EXTENSION_STATELESS
             if(connection->state != UA_CONNECTION_ESTABLISHED) {
-                connection->releaseRecvBuffer(connection, msg);
                 connection->close(connection);
                 return;
             } else
@@ -417,7 +416,6 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
-            connection->releaseRecvBuffer(connection, msg);
             connection->close(connection);
             return;
         }
@@ -429,5 +427,4 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             pos = targetpos;
         }
     } while(msg->length > (UA_Int32)pos);
-    connection->releaseRecvBuffer(connection, msg);
 }

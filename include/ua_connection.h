@@ -21,6 +21,7 @@ extern "C" {
 #endif
 
 #include "ua_types.h"
+#include "ua_job.h"
 
 typedef enum UA_ConnectionState {
     UA_CONNECTION_OPENING, ///< The socket is open, but the HEL/ACK handshake is not done
@@ -41,9 +42,6 @@ extern const UA_EXPORT UA_ConnectionConfig UA_ConnectionConfig_standard;
 /* Forward declaration */
 struct UA_SecureChannel;
 typedef struct UA_SecureChannel UA_SecureChannel;
-
-struct UA_Connection;
-typedef struct UA_Connection UA_Connection;
 
 /**
  * The connection to a single client (or server). The connection is defined independent of the
@@ -100,9 +98,11 @@ void UA_EXPORT UA_Connection_deleteMembers(UA_Connection *connection);
 void UA_EXPORT UA_Connection_detachSecureChannel(UA_Connection *connection);
 void UA_EXPORT UA_Connection_attachSecureChannel(UA_Connection *connection, UA_SecureChannel *channel);
 
-/** Returns a string of complete message (the length entry is decoded for that).
-    If the received message is incomplete, it is retained in the connection. */
-UA_ByteString UA_EXPORT UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received);
+/** Returns a job that contains either a message-bytestring managed by the network layer or a
+    message-bytestring that was newly allocated (or a nothing-job). Half-received messages are
+    attached to the connection. The next completion tries to create a complete message with the next
+    buffer the connection receives. */
+UA_Job UA_EXPORT UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received);
 
 #ifdef __cplusplus
 } // extern "C"

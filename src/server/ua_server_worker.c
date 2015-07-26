@@ -31,15 +31,24 @@ static void processJobs(UA_Server *server, UA_Job *jobs, size_t jobsSize) {
     for(size_t i = 0; i < jobsSize; i++) {
         UA_Job *job = &jobs[i];
         switch(job->type) {
-        case UA_JOBTYPE_BINARYMESSAGE:
-            UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
-                                           &job->job.binaryMessage.message);
+        case UA_JOBTYPE_NOTHING:
             break;
         case UA_JOBTYPE_DETACHCONNECTION:
             UA_Connection_detachSecureChannel(job->job.closeConnection);
             break;
+        case UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER:
+            UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
+                                           &job->job.binaryMessage.message);
+            UA_Connection *connection = job->job.binaryMessage.connection;
+            connection->releaseRecvBuffer(connection, &job->job.binaryMessage.message);
+            break;
+        case UA_JOBTYPE_BINARYMESSAGE_ALLOCATED:
+            UA_Server_processBinaryMessage(server, job->job.binaryMessage.connection,
+                                           &job->job.binaryMessage.message);
+            UA_ByteString_deleteMembers(&job->job.binaryMessage.message);
+            break;
         case UA_JOBTYPE_METHODCALL:
-        case UA_JOBTYPE_DELAYEDMETHODCALL:
+        case UA_JOBTYPE_METHODCALL_DELAYED:
             job->job.methodCall.method(server, job->job.methodCall.data);
             break;
         default:
