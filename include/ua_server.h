@@ -102,7 +102,8 @@ typedef struct {
      * @return Returns a status code for logging. Error codes intended for the original caller are set
      *         in the value. If an error is returned, then no releasing of the value is done.
      */
-    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range, UA_DataValue *value);
+    UA_StatusCode (*read)(void *handle, UA_Boolean includeSourceTimeStamp, const UA_NumericRange *range,
+                          UA_DataValue *value);
 
     /**
      * Write into a data source. The write member of UA_DataSource can be empty if the operation
@@ -143,7 +144,6 @@ UA_Server_AddMonodirectionalReference(UA_Server *server, UA_NodeId sourceNodeId,
                                       UA_ExpandedNodeId targetNodeId, UA_NodeId referenceTypeId,
                                       UA_Boolean isforward);
 
-
 #ifdef ENABLE_METHODCALLS
 typedef UA_StatusCode (*UA_MethodCallback)(const UA_NodeId objectId, const UA_Variant *input,
                                            UA_Variant *output);
@@ -159,14 +159,15 @@ UA_StatusCode UA_EXPORT
 UA_Server_attachMethod_toNode(UA_Server *server, UA_NodeId methodNodeId, UA_MethodCallback method);
 #endif
 
-/** Jobs describe work that is executed once or repeatedly. */
+/** Jobs describe work that is executed once or repeatedly in the server */
 typedef struct {
     enum {
-        UA_JOBTYPE_NOTHING,
-        UA_JOBTYPE_DETACHCONNECTION,
-        UA_JOBTYPE_BINARYMESSAGE,
-        UA_JOBTYPE_METHODCALL,
-        UA_JOBTYPE_DELAYEDMETHODCALL,
+        UA_JOBTYPE_NOTHING, ///< Guess what?
+        UA_JOBTYPE_DETACHCONNECTION, ///< Detach the connection from the secure channel (but don't delete it)
+        UA_JOBTYPE_BINARYMESSAGE_NETWORKLAYER, ///< The binary message is memory managed by the network layer
+        UA_JOBTYPE_BINARYMESSAGE_INTERNAL, ///< The binary message is memory allocated by the server
+        UA_JOBTYPE_METHODCALL, ///< Call the method as soon as possible
+        UA_JOBTYPE_METHODCALL_DELAYED, ///< Call the method as soon as all previous jobs have finished
     } type;
     union {
         UA_Connection *closeConnection;
@@ -200,8 +201,8 @@ UA_StatusCode UA_EXPORT UA_Server_addRepeatedJob(UA_Server *server, UA_Job job, 
                                                  UA_Guid *jobId);
 
 /**
- * Remove repeated job. The entry will be removed asynchronously during the
- * next iteration of the server main loop.
+ * Remove repeated job. The entry will be removed asynchronously during the next iteration of the
+ * server main loop.
  *
  * @param server The server object.
  *
@@ -321,8 +322,8 @@ typedef UA_Int32 (*UA_ExternalNodeStore_browseNodes)
  UA_BrowseResult *browseResults, UA_DiagnosticInfo *diagnosticInfos);
 
 typedef UA_Int32 (*UA_ExternalNodeStore_translateBrowsePathsToNodeIds)
-(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowsePath *browsePath,
- UA_UInt32 *indices, UA_UInt32 indicesSize, UA_BrowsePathResult *browsePathResults, UA_DiagnosticInfo *diagnosticInfos);
+(void *ensHandle, const UA_RequestHeader *requestHeader, UA_BrowsePath *browsePath, UA_UInt32 *indices,
+ UA_UInt32 indicesSize, UA_BrowsePathResult *browsePathResults, UA_DiagnosticInfo *diagnosticInfos);
 
 typedef UA_Int32 (*UA_ExternalNodeStore_delete)(void *ensHandle);
 
@@ -341,7 +342,8 @@ typedef struct UA_ExternalNodeStore {
 
 
 UA_StatusCode UA_EXPORT
-UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url, UA_ExternalNodeStore *nodeStore);
+UA_Server_addExternalNamespace(UA_Server *server, UA_UInt16 namespaceIndex, const UA_String *url,
+                               UA_ExternalNodeStore *nodeStore);
 /** @} */
 
 #endif /* external nodestore */

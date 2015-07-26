@@ -29,7 +29,8 @@ void UA_Connection_deleteMembers(UA_Connection *connection) {
 }
 
 /**
- *
+ * Tries to extract (possibly several) complete messages from the received buffer. Stores the
+ * remaining bytes that are the beginning of the following messages.
  */
 UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteString received) {
     if(received.length == -1)
@@ -59,12 +60,14 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
     /* find the first non-complete message */
     size_t end_pos = 0; // the end of the last complete message
     while(current.length - end_pos >= 16) {
-        if(!(current.data[0] == 'M' && current.data[1] == 'S' && current.data[2] == 'G') &&
-           !(current.data[0] == 'O' && current.data[1] == 'P' && current.data[2] == 'N') &&
-           !(current.data[0] == 'H' && current.data[1] == 'E' && current.data[2] == 'L') &&
-           !(current.data[0] == 'A' && current.data[1] == 'C' && current.data[2] == 'K') &&
-           !(current.data[0] == 'C' && current.data[1] == 'L' && current.data[2] == 'O')) {
-            current.length = end_pos; // throw the remaining bytestring away
+        UA_UInt32 msgtype = current.data[0] + (current.data[1] << 8) + (current.data[2] << 16);
+        if(msgtype != ('M' + ('S' << 8) + ('G' << 16)) &&
+           msgtype != ('O' + ('P' << 8) + ('N' << 16)) &&
+           msgtype != ('H' + ('E' << 8) + ('L' << 16)) &&
+           msgtype != ('A' + ('C' << 8) + ('K' << 16)) &&
+           msgtype != ('C' + ('L' << 8) + ('O' << 16))) {
+            /* the message type is not recognized. throw the remaining bytestring away */
+            current.length = end_pos;
             break;
         }
         UA_Int32 length = 0;
@@ -72,11 +75,12 @@ UA_ByteString UA_Connection_completeMessages(UA_Connection *connection, UA_ByteS
         UA_StatusCode retval = UA_Int32_decodeBinary(&current, &pos, &length);
         if(retval != UA_STATUSCODE_GOOD || length < 16 ||
            length > (UA_Int32)connection->localConf.maxMessageSize) {
-            current.length = end_pos; // throw the remaining bytestring away
+            /* the message size is not allowed. throw the remaining bytestring away */
+            current.length = end_pos;
             break;
         }
         if(length + (UA_Int32)end_pos > current.length)
-            break; // the message is incomplete
+            break; /* the message is incomplete. keep the beginning */
         end_pos += length;
     }
 

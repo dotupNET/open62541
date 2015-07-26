@@ -55,12 +55,16 @@ struct UA_Connection {
     UA_ConnectionConfig localConf;
     UA_ConnectionConfig remoteConf;
     UA_SecureChannel *channel; ///< The securechannel that is attached to this connection (or null)
-    UA_Int32 sockfd; ///< Most connectivity solutions run on sockets. Having the socket id here simplifies the design.
+    UA_Int32 sockfd; ///< Most connectivity solutions run on sockets. Having the socket id here
+                     ///  simplifies the design.
     void *handle; ///< A pointer to the networklayer
-    UA_ByteString incompleteMessage; ///< Half-received messages (e.g. TCP is a streaming protocol) get stored here
+    UA_ByteString incompleteMessage; ///< A half-received message (TCP is a streaming protocol) is stored here
 
-    UA_StatusCode (*getSendBuffer)(UA_Connection *connection, UA_ByteString *buf); ///< Get a buffer of the maximum remote recv size
-    void (*releaseSendBuffer)(UA_Connection *connection, UA_ByteString *buf); ///< Release the send buffer manually
+    /** Get a buffer of the max remote recv size */
+    UA_StatusCode (*getSendBuffer)(UA_Connection *connection, UA_ByteString *buf);
+
+    /** Release the send buffer manually */
+    void (*releaseSendBuffer)(UA_Connection *connection, UA_ByteString *buf);
 
     /**
      * Sends a message over the connection.
@@ -74,15 +78,20 @@ struct UA_Connection {
    /**
      * Receive a message from the remote connection
 	 * @param connection The connection
-	 * @param response The response string. It is allocated by the connection and needs to be freed with connection->releaseBuffer
+	 * @param response The response string. It is allocated by the connection and needs to be freed
+              with connection->releaseBuffer
      * @param timeout Timeout of the recv operation in milliseconds
-     * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation can be repeated, UA_STATUSCODE_GOOD if it succeeded and
-     * UA_STATUSCODE_BADCONNECTIONCLOSED if the connection was closed.
+     * @return Returns UA_STATUSCODE_BADCOMMUNICATIONERROR if the recv operation can be repeated,
+     *         UA_STATUSCODE_GOOD if it succeeded and UA_STATUSCODE_BADCONNECTIONCLOSED if the
+     *         connection was closed.
 	 */
     UA_StatusCode (*recv)(UA_Connection *connection, UA_ByteString *response, UA_UInt32 timeout);
-    void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf); ///< Release the buffer of a received message
 
-    void (*close)(UA_Connection *connection); ///< Close the connection
+    /** Release the buffer of a received message */
+    void (*releaseRecvBuffer)(UA_Connection *connection, UA_ByteString *buf);
+
+    /** Close the connection */
+    void (*close)(UA_Connection *connection);
 };
 
 void UA_EXPORT UA_Connection_init(UA_Connection *connection);

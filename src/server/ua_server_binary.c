@@ -159,8 +159,8 @@ static void invoke_service(UA_Server *server, UA_SecureChannel *channel, UA_UInt
         response->serviceResult = UA_STATUSCODE_BADSESSIONIDINVALID;
     } else if(session->activated == UA_FALSE) {
         response->serviceResult = UA_STATUSCODE_BADSESSIONNOTACTIVATED;
-        /* the session is invalidated FIXME: do this delayed*/
-        UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken);
+        /* /\* the session is invalidated FIXME: do this delayed*\/ */
+        /* UA_SessionManager_removeSession(&server->sessionManager, server, &request->authenticationToken); */
     } else {
         UA_Session_updateLifetime(session);
         service(server, session, request, response);
@@ -210,18 +210,16 @@ static void processMSG(UA_Connection *connection, UA_Server *server, const UA_By
     UA_SequenceHeader sequenceHeader;
     retval = UA_UInt32_decodeBinary(msg, pos, &tokenId);
     retval |= UA_SequenceHeader_decodeBinary(msg, pos, &sequenceHeader);
-    if(retval != UA_STATUSCODE_GOOD || tokenId==0) //0 is invalid
+    if(retval != UA_STATUSCODE_GOOD || tokenId == 0) // 0 is invalid
         return;
 
-    if(clientChannel != &anonymousChannel){
-        if(tokenId!=clientChannel->securityToken.tokenId){
-            //is client using a newly issued token?
-            if(tokenId==clientChannel->nextSecurityToken.tokenId){ //tokenId is not 0
-                UA_SecureChannel_revolveTokens(clientChannel);
-            }else{
-                //FIXME: how to react to this, what do we have to return? Or just kill the channel
-            }
+    if(clientChannel != &anonymousChannel && tokenId != clientChannel->securityToken.tokenId) {
+        if(tokenId != clientChannel->nextSecurityToken.tokenId) {
+            /* close the securechannel but keep the connection open */
+            Service_CloseSecureChannel(server, clientChannel->securityToken.channelId);
+            return;
         }
+        UA_SecureChannel_revolveTokens(clientChannel);
     }
 
     /* Read the request type */
@@ -409,9 +407,9 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         case UA_MESSAGETYPEANDFINAL_MSGF & 0xffffff:
 #ifndef EXTENSION_STATELESS
-            if(connection->state != UA_CONNECTION_ESTABLISHED){
+            if(connection->state != UA_CONNECTION_ESTABLISHED) {
+                connection->releaseRecvBuffer(connection, msg);
                 connection->close(connection);
-                UA_ByteString_deleteMembers(msg);
                 return;
             } else
 #endif
@@ -419,8 +417,8 @@ void UA_Server_processBinaryMessage(UA_Server *server, UA_Connection *connection
             break;
         case UA_MESSAGETYPEANDFINAL_CLOF & 0xffffff:
             processCLO(connection, server, msg, &pos);
+            connection->releaseRecvBuffer(connection, msg);
             connection->close(connection);
-            UA_ByteString_deleteMembers(msg);
             return;
         }
 
