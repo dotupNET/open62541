@@ -1,3 +1,12 @@
+I've changed the CMakeLists.txt to compile it on Raspberry PI rasbian.
+
+I've commented all lines (3) with target_compile_definitions because I get this error:
+
+CMake Error at CMakeLists.txt:273 (target_compile_definitions):
+  Unknown CMake command "target_compile_definitions".
+
+I'm not an cmake expert and i don't know what these lines of code are doing!
+
 open62541
 =========
 
