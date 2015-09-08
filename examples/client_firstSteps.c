@@ -2,6 +2,9 @@
 //http://open62541.org/doc/sphinx/tutorial_firstStepsClient.html
 
 #include <stdio.h>
+#ifndef _WIN32
+    #include <inttypes.h>
+#endif
 
 #ifdef UA_NO_AMALGAMATION
 # include "ua_types.h"
@@ -40,7 +43,7 @@ int main(void) {
         #ifdef _WIN32
            printf("raw date is: %I64u\n", raw_date);
         #else
-           printf("raw date is: %llu\n", raw_date);
+           printf("raw date is: %" PRIu64 "\n", raw_date);
         #endif
         UA_DateTime_toString(raw_date, string_date);
         printf("string date is: %.*s\n", string_date->length, string_date->data);
